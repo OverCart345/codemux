@@ -143,6 +143,8 @@ export default function Chat() {
   });
   const [messagesRef, setMessagesRef] = createSignal<HTMLDivElement>();
   const [loadingMessages, setLoadingMessages] = createSignal(false);
+  // Whether user has scrolled away from the bottom. When true, auto-scroll
+  // during streaming is suppressed so the user can read earlier content.
   const [userScrolledUp, setUserScrolledUp] = createSignal(false);
 
   // Current session's pending permissions and questions (for input area replacement)
@@ -228,13 +230,11 @@ export default function Chat() {
     navigate("/", { replace: true });
   };
 
-  const scrollToBottom = (force?: boolean) => {
+  // ── Scroll helpers ──────────────────────────────────────────────
+
+  const scrollToBottom = () => {
     const el = messagesRef();
-    if (el) {
-      if (force || !userScrolledUp()) {
-        el.scrollTop = el.scrollHeight;
-      }
-    }
+    if (el) el.scrollTop = el.scrollHeight;
   };
 
   // Debounced scrollToBottom for high-frequency part updates —
@@ -307,7 +307,7 @@ export default function Chat() {
       }
     } finally {
       setLoadingMessages(false);
-      setTimeout(() => scrollToBottom(true), 100);
+      setTimeout(() => scrollToBottom(), 100);
     }
   };
 
@@ -515,11 +515,14 @@ export default function Chat() {
       setConfigStore("currentEngineType", session.engineType);
     }
 
-    // Auto-select first available mode for the engine
+    // Only reset mode when current mode is incompatible with the engine
     const engineInfo = configStore.engines.find(e => e.type === (session?.engineType || configStore.currentEngineType));
     const availableModes = engineInfo?.capabilities?.availableModes;
     if (availableModes && availableModes.length > 0) {
-      setCurrentAgent(availableModes[0]);
+      const cur = currentAgent();
+      if (!availableModes.some(m => m.id === cur.id)) {
+        setCurrentAgent(availableModes[0]);
+      }
     }
 
     if (isMobile()) {
@@ -529,7 +532,7 @@ export default function Chat() {
     if (!messageStore.message[sessionId]) {
       await loadSessionMessages(sessionId);
     } else {
-      setTimeout(() => scrollToBottom(true), 100);
+      setTimeout(() => scrollToBottom(), 100);
     }
 
     // Stale check: if the user has already switched to another session
@@ -582,7 +585,7 @@ export default function Chat() {
       }
 
       setMessageStore("message", processedSession.id, []);
-      setTimeout(() => scrollToBottom(true), 100);
+      setTimeout(() => scrollToBottom(), 100);
 
       // Refresh engine capabilities (ACP engines populate modes/models only after createSession)
       try {
@@ -840,7 +843,9 @@ export default function Chat() {
       }
     }
 
-    scheduleScrollToBottom();
+    if (!userScrolledUp()) {
+      scheduleScrollToBottom();
+    }
   };
 
   const handlePartUpdated = (_sessionId: string, part: UnifiedPart) => {
@@ -855,11 +860,44 @@ export default function Chat() {
   const handleMessageUpdated = (_sessionId: string, msgInfo: UnifiedMessage) => {
     const targetSessionId = msgInfo.sessionId;
 
+    // When an assistant message completes, synchronously flush any buffered
+    // parts so they are in the store BEFORE we write the completed message.
+    // Without this, the rAF-batched parts (including the final text part)
+    // may not be in the store when isWorking transitions to false, causing
+    // the RESPONSE section to briefly (or permanently) not render.
+    if (msgInfo.role === "assistant" && msgInfo.time?.completed && pendingParts.size > 0) {
+      if (partFlushRafId !== null) {
+        cancelAnimationFrame(partFlushRafId);
+        partFlushRafId = null;
+      }
+      flushPendingParts();
+    }
+
     if (msgInfo.role === "user") {
       const currentMessages = messageStore.message[targetSessionId] || [];
       const tempMessages = currentMessages.filter(m => m.id.startsWith("msg-temp-"));
 
       if (tempMessages.length > 0) {
+        // Collect temp parts before deleting — if the real message has no parts
+        // (OpenCode often sends user message.updated without parts), we migrate
+        // the optimistic parts to the real message ID so the user bubble stays visible.
+        const hasMsgParts = msgInfo.parts && msgInfo.parts.length > 0;
+        if (!hasMsgParts) {
+          for (const tempMsg of tempMessages) {
+            const tempParts = messageStore.part[tempMsg.id];
+            if (tempParts && tempParts.length > 0) {
+              // Re-key temp parts to use the real message ID
+              const migrated = tempParts.map(p => ({
+                ...p,
+                id: p.id.replace(/^part-temp-/, `part-migrated-`),
+                messageId: msgInfo.id,
+              }));
+              setMessageStore("part", msgInfo.id, migrated);
+              break; // only need one temp message's parts
+            }
+          }
+        }
+
         setMessageStore("message", targetSessionId, (draft) =>
           draft.filter(m => !m.id.startsWith("msg-temp-"))
         );
@@ -1042,7 +1080,7 @@ export default function Chat() {
 
     setMessageStore("part", tempMessageId, [tempPart]);
     setUserScrolledUp(false);
-    setTimeout(() => scrollToBottom(true), 0);
+    setTimeout(() => scrollToBottom(), 0);
 
     try {
       const model = currentSessionModel();
@@ -1245,7 +1283,7 @@ export default function Chat() {
                 </div>
               }
             >
-              <div ref={setMessagesRef} onScroll={handleScroll} class="flex-1 overflow-y-auto px-4 md:px-6 scroll-smooth">
+              <div ref={setMessagesRef} onScroll={handleScroll} class="flex-1 overflow-y-auto px-4 md:px-6">
                 <div class="max-w-3xl mx-auto w-full py-6">
                   <Show
                     when={sessionStore.current && messageStore.message[sessionStore.current]?.length > 0}
