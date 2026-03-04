@@ -1,6 +1,6 @@
 {
   "name": "codemux",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "module",
   "description": "A unified AI coding assistant client - access multiple AI coding engines from any device via desktop app or web interface",
   "author": "realDuang",
@@ -43,6 +43,7 @@
     "solid-js": "^1.8.0",
     "tailwind-merge": "^2.2.0",
     "vscode-languageserver-types": "^3.17.5",
+    "@larksuiteoapi/node-sdk": "^1.42.0",
     "ws": "^8.19.0"
   },
   "devDependencies": {
