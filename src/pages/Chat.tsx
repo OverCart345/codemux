@@ -24,7 +24,7 @@ import { HideProjectModal } from "../components/HideProjectModal";
 import { AddProjectModal } from "../components/AddProjectModal";
 import type { UnifiedMessage, UnifiedPart, UnifiedPermission, UnifiedQuestion, UnifiedSession, UnifiedProject, AgentMode, EngineType, SessionActivityStatus } from "../types/unified";
 import { useI18n } from "../lib/i18n";
-import { ProjectStore } from "../lib/project-store";
+
 import { configStore, setConfigStore, getSelectedModelForEngine, restoreEngineModelSelections } from "../stores/config";
 
 // Binary search helper (consistent with opencode desktop)
@@ -64,7 +64,7 @@ function toSessionInfo(s: UnifiedSession, projectID?: string): SessionInfo {
     engineType: s.engineType,
     title: s.title || "",
     directory: s.directory || "",
-    projectID: projectID ?? (s.engineMeta?.projectID as string) ?? undefined,
+    projectID: projectID ?? s.projectId ?? (s.engineMeta?.projectID as string) ?? undefined,
     parentID: s.parentId,
     createdAt: new Date(s.time.created).toISOString(),
     updatedAt: new Date(s.time.updated).toISOString(),
@@ -200,6 +200,15 @@ export default function Chat() {
   // Mobile Sidebar State
   const [isSidebarOpen, setIsSidebarOpen] = createSignal(false);
   const [isMobile, setIsMobile] = createSignal(window.innerWidth < 768);
+
+  // Send validation error (auto-clears after 3s)
+  const [sendError, setSendError] = createSignal<string | null>(null);
+  let sendErrorTimer: ReturnType<typeof setTimeout> | undefined;
+  const showSendError = (msg: string) => {
+    clearTimeout(sendErrorTimer);
+    setSendError(msg);
+    sendErrorTimer = setTimeout(() => setSendError(null), 3000);
+  };
 
   const [deleteProjectInfo, setDeleteProjectInfo] = createSignal<{
     projectID: string;
@@ -389,20 +398,9 @@ export default function Chat() {
         }
       }
 
-      // Auto-hide global and invalid projects
-      for (const p of projects) {
-        if (!p.directory || p.directory === "/") {
-          ProjectStore.hide(p.id);
-        }
-      }
-
-      const hiddenIds = ProjectStore.getHiddenIds();
-      logger.debug("[Init] Hidden project IDs:", hiddenIds);
-
+      // Filter out invalid projects (no directory or root "/")
       const validProjects = projects.filter((p: UnifiedProject) => {
-        const isHidden = ProjectStore.isHidden(p.id);
-        logger.debug(`[Init] Project ${p.id} (${p.directory}) isHidden: ${isHidden}`);
-        return !isHidden;
+        return p.directory && p.directory !== "/";
       });
 
       // Load all sessions from all running engines
@@ -428,22 +426,12 @@ export default function Chat() {
       const filteredSessions = sessions.filter((s: UnifiedSession) => validDirectories.has(s.directory));
 
       const processedSessions: SessionInfo[] = filteredSessions.map((s: UnifiedSession) => {
-        // For ACP sessions without projectID, resolve via directory matching
-        let projectID = (s.engineMeta?.projectID as string) || undefined;
-        if (!projectID) {
-          const matchingProject = validProjects.find(p => p.directory === s.directory && p.engineType === s.engineType);
-          if (matchingProject) {
-            projectID = matchingProject.id;
-          }
-        }
-        return toSessionInfo(s, projectID);
+        return toSessionInfo(s);
       });
 
       processedSessions.sort((a: SessionInfo, b: SessionInfo) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       );
-
-      const currentSession = processedSessions[0] ?? null;
 
       // Merge with existing sessions: keep sessions already in list that weren't
       // returned by backend (e.g. Copilot doesn't persist completed sessions in
@@ -462,34 +450,13 @@ export default function Chat() {
         (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       );
 
+      // On startup, don't auto-open any session — let user pick from sidebar
       setSessionStore({
         list: mergedSessions,
         projects: validProjects,
-        current: currentSession?.id ?? null,
+        current: null,
         loading: false,
       });
-
-      if (currentSession) {
-        await loadSessionMessages(currentSession.id);
-
-        // Refresh model list after session init — ACP engines only populate
-        // models/currentModelId after createSession or loadSession, so the
-        // initial listModels call may have returned empty.
-        const initEngineType = currentSession.engineType || configStore.currentEngineType || "opencode";
-        try {
-          const modelResult = await gateway.listModels(initEngineType);
-          if (modelResult.models.length > 0) {
-            setConfigStore("models", modelResult.models);
-            setConfigStore("engineModels", initEngineType, modelResult.models);
-          }
-          if (modelResult.currentModelId) {
-            setConfigStore("currentModelID", modelResult.currentModelId);
-          }
-          restoreEngineModelSelections();
-        } catch {
-          // Non-critical
-        }
-      }
     } catch (error) {
       if (disposed) return;
       logger.error("[Init] Session initialization failed:", error);
@@ -544,24 +511,6 @@ export default function Chat() {
     // Stale check: if the user has already switched to another session
     // while we were awaiting, skip the rest to avoid useless work.
     if (gen !== switchGeneration) return;
-
-    // Refresh model list — ACP adapters populate models/currentModelId
-    // after loadSession, so we need to re-fetch after messages are loaded.
-    const switchEngineType = session?.engineType || configStore.currentEngineType || "opencode";
-    try {
-      const modelResult = await gateway.listModels(switchEngineType);
-      // Only apply if this is still the active switch
-      if (gen !== switchGeneration) return;
-      if (modelResult.models.length > 0) {
-        setConfigStore("models", modelResult.models);
-        setConfigStore("engineModels", switchEngineType, modelResult.models);
-      }
-      if (modelResult.currentModelId) {
-        setConfigStore("currentModelID", modelResult.currentModelId);
-      }
-    } catch {
-      // Non-critical
-    }
   };
 
   // New session
@@ -594,7 +543,7 @@ export default function Chat() {
       setMessageStore("message", processedSession.id, []);
       setTimeout(() => scrollToBottom(), 100);
 
-      // Refresh engine capabilities (ACP engines populate modes/models only after createSession)
+      // Refresh engine capabilities (ACP engines populate modes only after createSession)
       try {
         const engines = await gateway.listEngines();
         setConfigStore("engines", engines);
@@ -604,16 +553,6 @@ export default function Chat() {
         const availableModes = engineInfo?.capabilities?.availableModes;
         if (availableModes && availableModes.length > 0) {
           setCurrentAgent(availableModes[0]);
-        }
-
-        // Refresh model list (ACP adapter now has models populated from createSession)
-        const modelResult = await gateway.listModels(engineType);
-        if (modelResult.models.length > 0) {
-          setConfigStore("models", modelResult.models);
-          setConfigStore("engineModels", engineType, modelResult.models);
-        }
-        if (modelResult.currentModelId) {
-          setConfigStore("currentModelID", modelResult.currentModelId);
         }
       } catch {
         // Non-critical: mode list may be stale but won't block
@@ -633,15 +572,9 @@ export default function Chat() {
       // Remove from list
       setSessionStore("list", (list) => list.filter((s) => s.id !== sessionId));
 
-      // If current session deleted, switch to first available session
+      // If current session was deleted, just clear it — don't auto-switch
       if (sessionStore.current === sessionId) {
-        const remaining = sessionStore.list.filter((s) => s.id !== sessionId);
-        if (remaining.length > 0) {
-          await handleSelectSession(remaining[0].id);
-        } else {
-          // No sessions left, create a new one
-          await handleNewSession();
-        }
+        setSessionStore("current", null);
       }
     } catch (error) {
       logger.error("[DeleteSession] Failed to delete session:", error);
@@ -666,8 +599,7 @@ export default function Chat() {
     const info = deleteProjectInfo();
     if (!info) return;
 
-    logger.debug("[HideProject] Hiding project and deleting sessions:", info.projectID);
-    logger.debug("[HideProject] Hidden IDs before:", ProjectStore.getHiddenIds());
+    logger.debug("[DeleteProjectSessions] Deleting all sessions for project:", info.projectID);
 
     try {
       const sessionsToDelete = sessionStore.list.filter(
@@ -681,26 +613,15 @@ export default function Chat() {
         await gateway.deleteSession(session.id);
       }
 
-      ProjectStore.hide(info.projectID);
-      logger.debug("[HideProject] Hidden IDs after:", ProjectStore.getHiddenIds());
-
       setSessionStore("list", (list) =>
         list.filter((s) => s.projectID !== info.projectID)
       );
-      setSessionStore("projects", (projects) =>
-        projects.filter((p) => p.id !== info.projectID)
-      );
 
       if (currentSessionWillBeDeleted) {
-        const remainingSessions = sessionStore.list;
-        if (remainingSessions.length > 0) {
-          await handleSelectSession(remainingSessions[0].id);
-        } else {
-          await handleNewSession();
-        }
+        setSessionStore("current", null);
       }
     } catch (error) {
-      logger.error("[HideProject] Failed to hide project:", error);
+      logger.error("[DeleteProjectSessions] Failed:", error);
     } finally {
       setDeleteProjectInfo(null);
     }
@@ -732,8 +653,6 @@ export default function Chat() {
       }
 
       if (project) {
-        ProjectStore.add(project.id, directory);
-
         const existingProject = sessionStore.projects.find(p => p.id === project!.id);
         if (!existingProject) {
           setSessionStore("projects", (ps) => [...ps, project!]);
@@ -1014,6 +933,17 @@ export default function Chat() {
     const sessionId = sessionStore.current;
     if (!sessionId || sending()) return;
 
+    // Validate mode and model before sending
+    if (!agent?.id) {
+      showSendError(t().chat.noModeError);
+      return;
+    }
+    const modelId = getSelectedModelForEngine(currentEngineType());
+    if (!modelId) {
+      showSendError(t().chat.noModelError);
+      return;
+    }
+
     setSendingFor(sessionId, true);
 
     const tempMessageId = `msg-temp-${Date.now()}`;
@@ -1053,7 +983,6 @@ export default function Chat() {
     setTimeout(() => scrollToBottom(), 0);
 
     try {
-      const modelId = getSelectedModelForEngine(currentEngineType());
       await gateway.sendMessage(sessionId, text, {
         mode: agent.id,
         modelId,
@@ -1351,6 +1280,11 @@ export default function Chat() {
 
                   {/* Normal input when no permissions or questions pending */}
                   <Show when={currentPermissions().length === 0 && currentQuestions().length === 0}>
+                    <Show when={sendError()}>
+                      <div class="mb-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                        {sendError()}
+                      </div>
+                    </Show>
                     <PromptInput
                       onSend={handleSendMessage}
                       onCancel={handleCancelMessage}
