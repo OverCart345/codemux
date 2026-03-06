@@ -6,6 +6,7 @@ import { productionServer } from "./services/production-server";
 import { updateManager } from "./services/update-manager";
 import { getLogFilePath, getFileLogLevel, setFileLogLevel, loadSettings, saveSettings } from "./services/logger";
 import { isStartupReady } from "./index";
+import { channelManager } from "./index";
 
 export function registerIpcHandlers(): void {
   // ===========================================================================
@@ -210,6 +211,37 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("log:setLevel", async (_event, level: string) => {
     setFileLogLevel(level);
     return { success: true };
+  });
+
+  // ===========================================================================
+  // Channels (Feishu Bot, etc.)
+  // ===========================================================================
+
+  ipcMain.handle("channel:list", async () => {
+    return channelManager.listChannels();
+  });
+
+  ipcMain.handle("channel:getConfig", async (_, type: string) => {
+    return channelManager.getConfig(type);
+  });
+
+  ipcMain.handle("channel:updateConfig", async (_, type: string, updates: any) => {
+    await channelManager.updateConfig(type, updates);
+    return { success: true };
+  });
+
+  ipcMain.handle("channel:start", async (_, type: string) => {
+    await channelManager.startChannel(type);
+    return { success: true };
+  });
+
+  ipcMain.handle("channel:stop", async (_, type: string) => {
+    await channelManager.stopChannel(type);
+    return { success: true };
+  });
+
+  ipcMain.handle("channel:getStatus", async (_, type: string) => {
+    return channelManager.getStatus(type);
   });
 
   // ===========================================================================

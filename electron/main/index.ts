@@ -16,6 +16,8 @@ import { GatewayServer } from "./gateway/ws-server";
 import { OpenCodeAdapter } from "./engines/opencode-adapter";
 import { CopilotSdkAdapter } from "./engines/copilot-sdk-adapter";
 import { ClaudeCodeAdapter } from "./engines/claude-code-adapter";
+import { ChannelManager } from "./channels/channel-manager";
+import { FeishuAdapter } from "./channels/feishu/feishu-adapter";
 import { updateManager } from "./services/update-manager";
 
 // --- Gateway singleton instances ---
@@ -32,6 +34,14 @@ engineManager.registerAdapter(claudeAdapter);
 
 // Export for IPC handlers
 export { engineManager, gatewayServer };
+
+// --- Channel Manager ---
+const channelManager = new ChannelManager();
+const feishuAdapter = new FeishuAdapter();
+channelManager.registerAdapter(feishuAdapter);
+
+// Export for IPC handlers
+export { channelManager };
 
 // Gateway WS port
 const GATEWAY_PORT = 4200;
@@ -136,12 +146,25 @@ if (!gotTheLock) {
     }
 
     // Mark startup as ready once all engines have settled (success or failure)
-    Promise.allSettled(enginePromises).then(() => {
+    Promise.allSettled(enginePromises).then(async () => {
       startupReady = true;
       mainLog.info("All engines settled, startup ready");
       const win = getMainWindow();
       if (win && !win.isDestroyed()) {
         win.webContents.send("startup:ready");
+      }
+
+      // Initialize channels (after engines are ready and gateway is running)
+      try {
+        // Determine the actual Gateway WS URL for channel adapters.
+        // In production, gateway is attached to the production HTTP server on /ws path.
+        // In dev, gateway runs on a standalone port.
+        const gatewayUrl = app.isPackaged && productionServer.isRunning()
+          ? "ws://127.0.0.1:5173/ws"
+          : `ws://127.0.0.1:${GATEWAY_PORT}`;
+        await channelManager.initFromConfig({ gatewayUrl });
+      } catch (err) {
+        mainLog.error("Failed to initialize channels:", err);
       }
     });
 
@@ -172,6 +195,7 @@ if (!gotTheLock) {
 
       await Promise.all([
         authApiServer.stop(),
+        channelManager.stopAll(),
         engineManager.stopAll(),
         productionServer.stop(),
         (() => { gatewayServer.stop(); })(),
