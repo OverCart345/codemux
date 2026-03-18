@@ -199,6 +199,7 @@ export class GatewayClient {
     }
     this._connected = false;
     this.rejectAllPending("Client disconnected");
+    this.listeners.clear();
   }
 
   private scheduleReconnect(): void {
