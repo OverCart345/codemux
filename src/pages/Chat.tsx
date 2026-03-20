@@ -501,7 +501,11 @@ export default function Chat() {
         onQuestionReplied: handleQuestionReplied,
         onEngineStatusChanged: (engineType: EngineType, status: string, error?: string) => {
           setConfigStore("engines", (engines) =>
-            engines.map(e => e.type === engineType ? { ...e, status: status as any } : e)
+            engines.map(e => e.type === engineType ? {
+              ...e,
+              status: status as any,
+              errorMessage: status === "error" ? error : undefined,
+            } : e)
           );
           if (status === "error" && error) {
             notify(formatMessage(t().notification.engineError, { message: error }));
@@ -528,7 +532,10 @@ export default function Chat() {
         return;
       }
 
-      setSessionStore({ loading: true });
+      setSessionStore({
+        loading: true,
+        showDefaultWorkspace: getSetting<boolean>("showDefaultWorkspace") ?? false,
+      });
 
       // First-time initialization: connect gateway and load data
       await gateway.init(handlers);
@@ -688,7 +695,8 @@ export default function Chat() {
     logger.debug("[NewSession] Creating new session in directory:", directory, "engineType:", explicitEngineType);
 
     try {
-      const dir = directory || sessionStore.projects[0]?.directory || ".";
+      const defaultProject = sessionStore.projects.find(p => p.isDefault);
+      const dir = directory || defaultProject?.directory || sessionStore.projects[0]?.directory || ".";
       // Use explicitly-passed engineType when available, otherwise use global default engine.
       const engineType = explicitEngineType || getDefaultEngineType();
       const newSession = await gateway.createSession(engineType, dir);

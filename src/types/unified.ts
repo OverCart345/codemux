@@ -22,6 +22,8 @@ export interface EngineInfo {
   authenticated?: boolean;
   /** Human-readable auth status message (e.g. username or error) */
   authMessage?: string;
+  /** Error message when status is "error" */
+  errorMessage?: string;
 }
 
 export interface EngineCapabilities {
@@ -411,6 +413,8 @@ export interface UnifiedProject {
   engineType?: EngineType;
   /** Engine-specific data */
   engineMeta?: Record<string, unknown>;
+  /** Marks the default workspace project (auto-created fallback directory) */
+  isDefault?: boolean;
 }
 
 // ============================================================================

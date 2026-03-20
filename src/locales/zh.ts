@@ -115,6 +115,8 @@ export const zh: LocaleDict = {
     importNoSessions: "没有找到可导入的新会话",
     importError: "导入失败",
     importSkipped: "已跳过（已导入）",
+    showDefaultWorkspace: "在侧边栏显示默认工作区",
+    showDefaultWorkspaceDesc: "在侧边栏中显示默认工作区项目分组",
   },
 
   // Remote Access page
@@ -185,6 +187,7 @@ export const zh: LocaleDict = {
     defaultEngine: "默认引擎",
     searchPlaceholder: "搜索会话...",
     noSearchResults: "没有匹配的会话",
+    defaultWorkspace: "默认工作区",
   },
 
   // Project
@@ -197,7 +200,6 @@ export const zh: LocaleDict = {
     browseNotSupported: "当前浏览器不支持文件夹选择",
     adding: "正在添加项目...",
     addFailed: "添加项目失败",
-    notGitRepo: "指定路径不是有效的 git 仓库",
     hideTitle: "删除项目会话",
     hideConfirm: "删除项目「{name}」的所有会话？",
     sessionCount: "这将删除 {count} 个会话。",
@@ -344,9 +346,8 @@ export const zh: LocaleDict = {
     modelInputPlaceholder: "输入模型 ID（如 claude-sonnet-4-20250514）",
     enabled: "已启用",
     disabled: "已停用",
+    unavailable: "不可用",
   },
-
-  // Channels
   channel: {
     channels: "渠道",
     feishuBot: "飞书机器人",

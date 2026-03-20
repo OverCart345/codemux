@@ -114,6 +114,8 @@ export interface LocaleDict {
     importNoSessions: string;
     importError: string;
     importSkipped: string;
+    showDefaultWorkspace: string;
+    showDefaultWorkspaceDesc: string;
   };
 
   // Remote Access page
@@ -184,6 +186,7 @@ export interface LocaleDict {
     defaultEngine: string;
     searchPlaceholder: string;
     noSearchResults: string;
+    defaultWorkspace: string;
   };
 
   // Project
@@ -196,7 +199,6 @@ export interface LocaleDict {
     browseNotSupported: string;
     adding: string;
     addFailed: string;
-    notGitRepo: string;
     hideTitle: string;
     hideConfirm: string;
     sessionCount: string;
@@ -343,6 +345,7 @@ export interface LocaleDict {
     modelInputPlaceholder: string;
     enabled: string;
     disabled: string;
+    unavailable: string;
   };
 
   // Channels
@@ -577,6 +580,8 @@ export const en: LocaleDict = {
     importNoSessions: "No new sessions found to import",
     importError: "Failed to import",
     importSkipped: "Skipped (already imported)",
+    showDefaultWorkspace: "Show default workspace in sidebar",
+    showDefaultWorkspaceDesc: "Display the default workspace project group in the sidebar",
   },
 
   // Remote Access page
@@ -647,6 +652,7 @@ export const en: LocaleDict = {
     defaultEngine: "Default Engine",
     searchPlaceholder: "Search sessions...",
     noSearchResults: "No matching sessions",
+    defaultWorkspace: "Default Workspace",
   },
 
   // Project
@@ -659,7 +665,6 @@ export const en: LocaleDict = {
     browseNotSupported: "Folder selection not supported in this browser",
     adding: "Adding project...",
     addFailed: "Failed to add project",
-    notGitRepo: "The specified path is not a valid git repository",
     hideTitle: "Delete Project Sessions",
     hideConfirm: "Delete all sessions for project \"{name}\"?",
     sessionCount: "This will delete {count} session(s).",
@@ -806,9 +811,8 @@ export const en: LocaleDict = {
     modelInputPlaceholder: "Enter model ID (e.g. claude-sonnet-4-20250514)",
     enabled: "Enabled",
     disabled: "Disabled",
+    unavailable: "Unavailable",
   },
-
-  // Channels
   channel: {
     channels: "Channels",
     feishuBot: "Feishu Bot",
