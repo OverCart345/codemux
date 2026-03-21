@@ -244,7 +244,7 @@ export default function Settings() {
                   </div>
                 </div>
                 {/* Theme Setting */}
-                <div class="p-4 sm:p-6 flex items-center justify-between gap-4 border-b border-gray-200 dark:border-slate-700">
+                <div class="p-4 sm:p-6 flex items-center justify-between gap-4">
                   <div>
                     <h3 class="text-base font-medium text-gray-900 dark:text-white">
                       {t().settings.theme}
@@ -255,34 +255,6 @@ export default function Settings() {
                   </div>
                   <div class="flex-shrink-0">
                     <ThemeSwitcher />
-                  </div>
-                </div>
-                {/* Show Default Workspace toggle */}
-                <div class="p-4 sm:p-6 flex items-center justify-between gap-4">
-                  <div>
-                    <h3 class="text-base font-medium text-gray-900 dark:text-white">
-                      {t().settings.showDefaultWorkspace}
-                    </h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      {t().settings.showDefaultWorkspaceDesc}
-                    </p>
-                  </div>
-                  <div class="flex-shrink-0">
-                    <button
-                      onClick={handleShowDefaultWorkspaceToggle}
-                      class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        showDefaultWorkspace() ? "bg-blue-600" : "bg-gray-300 dark:bg-slate-600"
-                      }`}
-                      role="switch"
-                      aria-checked={showDefaultWorkspace()}
-                      aria-label={t().settings.showDefaultWorkspace}
-                    >
-                      <span
-                        class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          showDefaultWorkspace() ? "translate-x-6" : "translate-x-1"
-                        }`}
-                      />
-                    </button>
                   </div>
                 </div>
               </div>
@@ -419,29 +391,27 @@ export default function Settings() {
                                 </Show>
                               </div>
                             </div>
-                            {/* Toggle switch: reflects persisted enabled flag, independent of runtime status */}
-                            {(() => {
-                              const isOn = isEngineEnabled(engine.type);
-                              return (
-                                <button
-                                  onClick={() => setEngineEnabled(engine.type, !isEngineEnabled(engine.type))}
-                                  class={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                    isOn
-                                      ? "bg-blue-600 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
-                                      : "bg-gray-200 dark:bg-slate-600 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
-                                  }`}
-                                  role="switch"
-                                  aria-checked={isOn}
-                                  aria-label={isOn ? t().engine.enabled : t().engine.disabled}
-                                >
-                                  <span
-                                    class={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                                      isOn ? "translate-x-5" : "translate-x-0"
-                                    }`}
-                                  />
-                                </button>
-                              );
-                            })()}
+                            {/* Toggle switch: ON only when running+enabled, disabled when not running */}
+                            <button
+                              onClick={() => engine.status === "running" && setEngineEnabled(engine.type, !isEngineEnabled(engine.type))}
+                              disabled={engine.status !== "running"}
+                              class={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                engine.status !== "running"
+                                  ? "bg-gray-200 dark:bg-slate-700 opacity-50 cursor-not-allowed"
+                                  : isEngineEnabled(engine.type)
+                                    ? "bg-blue-600 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
+                                    : "bg-gray-200 dark:bg-slate-600 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
+                              }`}
+                              role="switch"
+                              aria-checked={engine.status === "running" && isEngineEnabled(engine.type)}
+                              aria-label={engine.status === "running" && isEngineEnabled(engine.type) ? t().engine.enabled : t().engine.disabled}
+                            >
+                              <span
+                                class={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                  engine.status === "running" && isEngineEnabled(engine.type) ? "translate-x-5" : "translate-x-0"
+                                }`}
+                              />
+                            </button>
                           </div>
 
                           {/* Model selector - only for running + enabled engines */}
@@ -592,7 +562,7 @@ export default function Settings() {
                     </div>
                   </Show>
                   {/* Log level */}
-                  <div class="p-4 sm:p-6 flex items-center justify-between gap-4">
+                  <div class="p-4 sm:p-6 flex items-center justify-between gap-4 border-b border-gray-200 dark:border-slate-700">
                     <div>
                       <h3 class="text-base font-medium text-gray-900 dark:text-white">
                         {t().settings.logLevel}
@@ -613,6 +583,34 @@ export default function Settings() {
                           )}
                         </For>
                       </select>
+                    </div>
+                  </div>
+                  {/* Show Default Workspace toggle */}
+                  <div class="p-4 sm:p-6 flex items-center justify-between gap-4">
+                    <div>
+                      <h3 class="text-base font-medium text-gray-900 dark:text-white">
+                        {t().settings.showDefaultWorkspace}
+                      </h3>
+                      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {t().settings.showDefaultWorkspaceDesc}
+                      </p>
+                    </div>
+                    <div class="flex-shrink-0">
+                      <button
+                        onClick={handleShowDefaultWorkspaceToggle}
+                        class={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          showDefaultWorkspace() ? "bg-blue-600" : "bg-gray-300 dark:bg-slate-600"
+                        }`}
+                        role="switch"
+                        aria-checked={showDefaultWorkspace()}
+                        aria-label={t().settings.showDefaultWorkspace}
+                      >
+                        <span
+                          class={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            showDefaultWorkspace() ? "translate-x-6" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
                     </div>
                   </div>
                 </div>
