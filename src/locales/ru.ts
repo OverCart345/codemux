@@ -513,6 +513,10 @@ export const ru: LocaleDict = {
     openInExplorer: "Открыть в проводнике",
   },
 
+  terminal: {
+    togglePanel: "Переключить терминал",
+  },
+
   scheduledTask: {
     title: "Запланированные задачи",
     create: "Создать задачу",

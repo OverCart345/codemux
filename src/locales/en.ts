@@ -512,6 +512,11 @@ export interface LocaleDict {
     openInExplorer: string;
   };
 
+  // Terminal
+  terminal: {
+    togglePanel: string;
+  };
+
   // Scheduled Tasks
   scheduledTask: {
     title: string;
@@ -1104,6 +1109,10 @@ export const en: LocaleDict = {
     noResults: "No results",
     matchCount: "{current} of {total}",
     openInExplorer: "Open in file explorer",
+  },
+
+  terminal: {
+    togglePanel: "Toggle terminal",
   },
 
   scheduledTask: {
